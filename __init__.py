@@ -56,32 +56,35 @@ def load_model(model_name=None, model_path=None, **kwargs):
             Default: "allenai/Molmo2-4B"
         **kwargs: Additional config parameters:
             - operation: "pointing", "tracking", or "describe" (default: "pointing")
-            - target: What to point to/track (required for pointing/tracking)
-            - prompt: Text prompt (required for describe operation)
+            - target: What to point to/track (can be set after instantiation)
+            - prompt: Text prompt (can be set after instantiation)
             - max_new_tokens: Max tokens to generate (default: 2048)
         
     Returns:
         Molmo2VideoModel: Initialized model ready for inference
     
     Examples:
-        # Pointing to objects
+        # Load model first, then configure
+        model = load_model(model_path="allenai/Molmo2-4B")
+        model.operation = "pointing"
+        model.target = "penguins"
+        dataset.apply_model(model, label_field="penguins")
+        
+        # Or configure at load time
         model = load_model(
-            model_path="allenai/Molmo2-4B",
             operation="pointing",
             target="penguins"
         )
         
         # Tracking objects
-        model = load_model(
-            operation="tracking",
-            target="the red car"
-        )
+        model = load_model()
+        model.operation = "tracking"
+        model.target = "the red car"
         
         # Description/QA/Captioning
-        model = load_model(
-            operation="describe",
-            prompt="Describe this video in detail."
-        )
+        model = load_model()
+        model.operation = "describe"
+        model.prompt = "Describe this video in detail."
         
         # Apply to dataset
         dataset.apply_model(model, label_field="predictions")

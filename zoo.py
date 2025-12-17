@@ -150,10 +150,14 @@ class Molmo2VideoModelConfig(fout.TorchImageModelConfig):
     
     Key Parameters:
         model_path: HuggingFace model ID (default: "allenai/Molmo2-4B")
-        operation: One of "pointing", "tracking", "describe"
-        target: What to point to/track (required for pointing/tracking)
-        prompt: Text prompt (required for describe operation)
+        operation: One of "pointing", "tracking", "describe" (default: "pointing")
+        target: What to point to/track (set before inference for pointing/tracking)
+        prompt: Text prompt (set before inference for describe operation)
         max_new_tokens: Maximum tokens to generate (default: 2048)
+    
+    Note:
+        Parameters can be set after instantiation via model properties.
+        Validation happens at inference time, not at instantiation.
     """
     
     def __init__(self, d):
@@ -166,25 +170,14 @@ class Molmo2VideoModelConfig(fout.TorchImageModelConfig):
         # Operation: "pointing", "tracking", or "describe"
         self.operation = self.parse_string(d, "operation", default="pointing")
         
-        # Target for pointing/tracking operations
+        # Target for pointing/tracking operations (can be set later)
         self.target = self.parse_string(d, "target", default=None)
         
-        # Prompt for describe operation
+        # Prompt for describe operation (can be set later)
         self.prompt = self.parse_string(d, "prompt", default=None)
         
         # Generation parameters
         self.max_new_tokens = self.parse_number(d, "max_new_tokens", default=2048)
-        
-        # Validation
-        valid_ops = ["pointing", "tracking", "describe"]
-        if self.operation not in valid_ops:
-            raise ValueError(f"operation must be one of {valid_ops}, got '{self.operation}'")
-        
-        if self.operation in ["pointing", "tracking"] and not self.target:
-            raise ValueError(f"'target' required for operation='{self.operation}'")
-        
-        if self.operation == "describe" and not self.prompt:
-            raise ValueError("'prompt' required for operation='describe'")
 
 
 # =============================================================================
@@ -225,6 +218,24 @@ class Molmo2VideoModel(fom.Model, SupportsGetItem, TorchModelMixin):
         # Lazy-loaded model components
         self._processor = None
         self._model = None
+        
+        # Fields needed from samples (for SamplesMixin compatibility)
+        self._fields = {}
+    
+    @property
+    def needs_fields(self):
+        """Dict mapping model-specific keys to sample field names.
+        
+        This allows the model to access sample-level fields during inference.
+        For example, to use a per-sample prompt field:
+            model.needs_fields = {"prompt_field": "my_prompts"}
+        """
+        return self._fields
+    
+    @needs_fields.setter
+    def needs_fields(self, fields):
+        """Set the fields this model needs from samples."""
+        self._fields = fields
     
     # =========================================================================
     # Properties from Model base class
@@ -258,6 +269,53 @@ class Molmo2VideoModel(fom.Model, SupportsGetItem, TorchModelMixin):
         Variable sizes are handled via custom collate_fn.
         """
         return False
+    
+    # =========================================================================
+    # Operation configuration properties (can be set after instantiation)
+    # =========================================================================
+    
+    @property
+    def operation(self):
+        """Current operation type: 'pointing', 'tracking', or 'describe'."""
+        return self.config.operation
+    
+    @operation.setter
+    def operation(self, value):
+        """Set operation type."""
+        valid_ops = ["pointing", "tracking", "describe"]
+        if value not in valid_ops:
+            raise ValueError(f"operation must be one of {valid_ops}, got '{value}'")
+        self.config.operation = value
+    
+    @property
+    def target(self):
+        """Target for pointing/tracking operations."""
+        return self.config.target
+    
+    @target.setter
+    def target(self, value):
+        """Set target for pointing/tracking operations."""
+        self.config.target = value
+    
+    @property
+    def prompt(self):
+        """Prompt for describe operation."""
+        return self.config.prompt
+    
+    @prompt.setter
+    def prompt(self, value):
+        """Set prompt for describe operation."""
+        self.config.prompt = value
+    
+    @property
+    def max_new_tokens(self):
+        """Maximum tokens to generate."""
+        return self.config.max_new_tokens
+    
+    @max_new_tokens.setter
+    def max_new_tokens(self, value):
+        """Set maximum tokens to generate."""
+        self.config.max_new_tokens = value
     
     # =========================================================================
     # Properties from TorchModelMixin (Critical for variable sizes!)
@@ -315,17 +373,61 @@ class Molmo2VideoModel(fom.Model, SupportsGetItem, TorchModelMixin):
     # Prompt building
     # =========================================================================
     
-    def _get_prompt(self) -> str:
-        """Get prompt for current operation."""
+    def _get_prompt(self, sample=None) -> str:
+        """Get prompt for current operation.
+        
+        Validates that required parameters are set.
+        For describe operation, supports per-sample prompts via needs_fields.
+        
+        Args:
+            sample: Optional FiftyOne sample for per-sample prompt lookup
+        
+        Raises:
+            ValueError: If required parameters are not set for the operation
+        """
         if self.config.operation == "describe":
-            return self.config.prompt
+            # Check for per-sample prompt override via needs_fields
+            prompt = self.config.prompt
+            if sample and self._fields:
+                prompt_field = self._fields.get("prompt_field") or next(iter(self._fields.values()), None)
+                if prompt_field:
+                    field_value = sample.get_field(prompt_field)
+                    if field_value:
+                        prompt = str(field_value)
+            
+            if not prompt:
+                raise ValueError(
+                    "prompt is required for operation='describe'. "
+                    "Set it via model.prompt = 'your prompt' or use needs_fields for per-sample prompts"
+                )
+            return prompt
         else:
+            # pointing or tracking
+            # Check for per-sample target override via needs_fields
+            target = self.config.target
+            if sample and self._fields:
+                target_field = self._fields.get("target_field") or self._fields.get("target")
+                if target_field:
+                    field_value = sample.get_field(target_field)
+                    if field_value:
+                        target = str(field_value)
+            
+            if not target:
+                raise ValueError(
+                    f"target is required for operation='{self.config.operation}'. "
+                    f"Set it via model.target = 'object to find' or use needs_fields for per-sample targets"
+                )
             template = OPERATION_PROMPTS[self.config.operation]
-            return template.format(target=self.config.target)
+            return template.format(target=target)
     
-    def _build_messages(self, video_path: str) -> List[Dict]:
-        """Build message structure for Molmo2 inference."""
-        prompt = self._get_prompt()
+    def _build_messages(self, video_path: str, sample=None) -> List[Dict]:
+        """Build message structure for Molmo2 inference.
+        
+        Args:
+            video_path: Path to video file
+            sample: Optional FiftyOne sample for per-sample prompt/target lookup
+        """
+        prompt = self._get_prompt(sample=sample)
         return [{
             "role": "user",
             "content": [
@@ -338,16 +440,17 @@ class Molmo2VideoModel(fom.Model, SupportsGetItem, TorchModelMixin):
     # Inference
     # =========================================================================
     
-    def _run_inference(self, video_path: str) -> Tuple[str, Dict]:
+    def _run_inference(self, video_path: str, sample=None) -> Tuple[str, Dict]:
         """Run model inference on a single video.
         
         Args:
             video_path: Path to video file
+            sample: Optional FiftyOne sample for per-sample prompt/target lookup
         
         Returns:
             Tuple of (generated_text, video_metadata)
         """
-        messages = self._build_messages(video_path)
+        messages = self._build_messages(video_path, sample=sample)
         
         # Process video using molmo_utils
         _, videos, video_kwargs = process_vision_info(messages)
@@ -569,7 +672,7 @@ class Molmo2VideoModel(fom.Model, SupportsGetItem, TorchModelMixin):
         
         Args:
             video_paths: List of video filepaths from GetItem
-            samples: Optional list of FiftyOne samples
+            samples: Optional list of FiftyOne samples (for metadata and per-sample fields)
         
         Returns:
             List of label dicts (one per video)
@@ -583,8 +686,8 @@ class Molmo2VideoModel(fom.Model, SupportsGetItem, TorchModelMixin):
             sample = samples[i] if samples else None
             
             try:
-                # Run inference
-                generated_text, video_metadata = self._run_inference(video_path)
+                # Run inference (pass sample for per-sample prompt/target lookup)
+                generated_text, video_metadata = self._run_inference(video_path, sample=sample)
                 logger.debug(f"Generated text: {generated_text[:200]}...")
                 
                 # Parse output
