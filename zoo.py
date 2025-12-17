@@ -353,22 +353,22 @@ class Molmo2VideoModel(fom.Model, SupportsGetItem, TorchModelMixin):
         """Load Molmo2 model and processor from HuggingFace."""
         logger.info(f"Loading Molmo2 model from {self.config.model_path} on {self.device}")
         
-        # Load processor - needs dtype/device_map to avoid config loading issues
+        # Load processor
         self._processor = AutoProcessor.from_pretrained(
             self.config.model_path,
             trust_remote_code=True,
             dtype="auto",
-            device_map="auto"
+            device_map=self.device
         )
         
         # Load model on detected device
         self._model = AutoModelForImageTextToText.from_pretrained(
             self.config.model_path,
             trust_remote_code=True,
-            torch_dtype=torch.bfloat16 if self.device == "cuda" else torch.float32,
+            dtype="auto",
         ).to(self.device).eval()
         
-        logger.info(f"Model loaded successfully on {self.device}")
+        logger.info(f"Model loaded on {self.device}")
     
     # =========================================================================
     # Prompt building
