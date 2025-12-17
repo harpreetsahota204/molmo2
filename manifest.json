@@ -1,0 +1,78 @@
+{
+    "name": "molmo2",
+    "url": "https://github.com/harpreetsahota204/molmo2",
+    "models": [
+        {
+            "base_name": "allenai/Molmo2-4B",
+            "base_filename":"Molmo2-4B",
+            "author": "Allen Institute for AI (Ai2)",
+            "license": "Apache-2.0",
+            "source": "https://huggingface.co/allenai/Molmo2-4B",
+            "description": "Molmo2 is a family of open vision-language models developed by the Allen Institute for AI (Ai2) that support image, video and multi-image understanding and grounding.",
+            "tags": [
+                "torch",
+                "keypoints",
+                "zero-shot",
+                "video"
+            ],
+            "date_added": "2025-12-17",
+            "requirements": {
+                "packages": ["huggingface-hub","transformers", "torch", "torchvision",  "molmo_utils", "decord2", "einops", "accelerate"],
+                "cpu": {
+                    "support": true
+                },
+                "gpu": {
+                    "support": true
+                }
+            }
+        },
+        {
+            "base_name": "allenai/Molmo2-O-7B",
+            "base_filename":"Molmo2-O-7B",
+            "author": "Allen Institute for AI (Ai2)",
+            "license": "Apache-2.0",
+            "source": "https://huggingface.co/allenai/Molmo2-O-7B",
+            "description": "Molmo2 is a family of open vision-language models developed by the Allen Institute for AI (Ai2) that support image, video and multi-image understanding and grounding.",
+            "tags": [
+                "torch",
+                "keypoints",
+                "zero-shot",
+                "video"
+            ],
+            "date_added": "2025-12-17",
+            "requirements": {
+                "packages": ["huggingface-hub","transformers", "torch", "torchvision",  "molmo_utils", "decord2", "einops", "accelerate"],
+                "cpu": {
+                    "support": true
+                },
+                "gpu": {
+                    "support": true
+                }
+            }
+        },
+        {
+            "base_name": "allenai/Molmo2-8B",
+            "base_filename":"Molmo2-8B",
+            "author": "Allen Institute for AI (Ai2)",
+            "license": "Apache-2.0",
+            "source": "https://huggingface.co/allenai/Molmo2-8B",
+            "description": "Molmo2 is a family of open vision-language models developed by the Allen Institute for AI (Ai2) that support image, video and multi-image understanding and grounding.",
+            "tags": [
+                "torch",
+                "keypoints",
+                "zero-shot",
+                "video"
+            ],
+            "date_added": "2025-12-17",
+            "requirements": {
+                "packages": ["huggingface-hub","transformers", "torch", "torchvision",  "molmo_utils", "decord2", "einops", "accelerate"],
+                "cpu": {
+                    "support": true
+                },
+                "gpu": {
+                    "support": true
+                }
+            }
+        }
+   ]
+}
