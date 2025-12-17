@@ -353,13 +353,13 @@ class Molmo2VideoModel(fom.Model, SupportsGetItem, TorchModelMixin):
         """Load Molmo2 model and processor from HuggingFace."""
         logger.info(f"Loading Molmo2 model from {self.config.model_path}")
         
+        # Load processor (no torch_dtype or device_map for processor)
         self._processor = AutoProcessor.from_pretrained(
             self.config.model_path,
             trust_remote_code=True,
-            torch_dtype="auto",
-            device_map="auto"
         )
         
+        # Load model with dtype and device settings
         self._model = AutoModelForImageTextToText.from_pretrained(
             self.config.model_path,
             trust_remote_code=True,
@@ -456,6 +456,11 @@ class Molmo2VideoModel(fom.Model, SupportsGetItem, TorchModelMixin):
         _, videos, video_kwargs = process_vision_info(messages)
         videos, video_metadatas = zip(*videos)
         videos, video_metadatas = list(videos), list(video_metadatas)
+        
+        # Filter out kwargs that the processor doesn't accept
+        # (molmo_utils may return extra kwargs depending on version)
+        invalid_kwargs = ["image_use_col_tokens"]
+        video_kwargs = {k: v for k, v in video_kwargs.items() if k not in invalid_kwargs}
         
         # Apply chat template
         text = self._processor.apply_chat_template(
