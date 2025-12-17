@@ -351,23 +351,30 @@ class Molmo2VideoModel(fom.Model, SupportsGetItem, TorchModelMixin):
     
     def _load_model(self):
         """Load Molmo2 model and processor from HuggingFace."""
-        logger.info(f"Loading Molmo2 model from {self.config.model_path}")
+        logger.info(f"Loading Molmo2 model from {self.config.model_path} on {self.device}")
         
-        # Load processor (no torch_dtype or device_map for processor)
+        # Determine dtype based on device
+        if self.device == "cuda":
+            dtype = torch.bfloat16
+        elif self.device == "mps":
+            dtype = torch.float16
+        else:
+            dtype = torch.float32
+        
+        # Load processor
         self._processor = AutoProcessor.from_pretrained(
             self.config.model_path,
             trust_remote_code=True,
         )
         
-        # Load model with dtype and device settings
+        # Load model on detected device
         self._model = AutoModelForImageTextToText.from_pretrained(
             self.config.model_path,
             trust_remote_code=True,
-            torch_dtype="auto",
-            device_map="auto"
-        ).eval()
+            torch_dtype=dtype,
+        ).to(self.device).eval()
         
-        logger.info("Model loaded successfully")
+        logger.info(f"Model loaded successfully on {self.device} with dtype {dtype}")
     
     # =========================================================================
     # Prompt building
@@ -477,7 +484,7 @@ class Molmo2VideoModel(fom.Model, SupportsGetItem, TorchModelMixin):
             **video_kwargs,
         )
         
-        inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
         
         # Generate
         with torch.inference_mode():
