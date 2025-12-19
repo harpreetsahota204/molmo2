@@ -78,6 +78,33 @@ def has_grounded_output(text: str) -> bool:
     return bool(COORD_REGEX.search(text))
 
 
+def normalize_timestamp(timestamp_str: str) -> str:
+    """Normalize timestamp to mm:ss.ff format.
+    
+    Molmo2 outputs mm:ss format, but FiftyOne expects mm:ss.ff.
+    This function adds .00 if fractional seconds are missing.
+    
+    Args:
+        timestamp_str: Timestamp in mm:ss or mm:ss.ff format
+    
+    Returns:
+        str: Timestamp in mm:ss.ff format
+    
+    Examples:
+        "00:05" → "00:05.00"
+        "00:05.50" → "00:05.50"
+        "2.5" → "2.5" (passthrough for numeric)
+    """
+    timestamp_str = str(timestamp_str)
+    
+    # If it matches mm:ss pattern without .ff, add .00
+    if re.match(r'^\d+:\d+$', timestamp_str):
+        return timestamp_str + ".00"
+    
+    # Otherwise return as-is (already has .ff or is numeric)
+    return timestamp_str
+
+
 def extract_json(text: str):
     """Extract JSON from model output.
     
@@ -841,6 +868,10 @@ class Molmo2VideoModel(fom.Model, SamplesMixin, SupportsGetItem, TorchModelMixin
                 start = item.get("start", "00:00.00")
                 end = item.get("end", "00:00.00")
                 label = str(item.get("text", "text"))
+            
+            # Normalize timestamps (add .00 if missing fractional seconds)
+            start = normalize_timestamp(start)
+            end = normalize_timestamp(end)
             
             # Use FiftyOne's from_timestamps() which handles both
             # "HH:MM:SS.XXX" strings and numeric seconds
