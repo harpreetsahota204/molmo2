@@ -77,32 +77,17 @@ def has_grounded_output(text: str) -> bool:
     """Check if model output contains <points> or <tracks> tags."""
     return bool(COORD_REGEX.search(text))
 
-
-def normalize_timestamp(timestamp_str: str) -> str:
-    """Normalize timestamp to mm:ss.ff format.
+def normalize_timestamp(timestamp_str: str) -> float:
+    """Convert timestamp to seconds."""
+    s = str(timestamp_str).strip()
     
-    Molmo2 outputs mm:ss format, but FiftyOne expects mm:ss.ff.
-    This function adds .00 if fractional seconds are missing.
+    if ':' in s:
+        parts = s.split(':')
+        return sum(float(p) * m for p, m in zip(reversed(parts), [1, 60, 3600]))
     
-    Args:
-        timestamp_str: Timestamp in mm:ss or mm:ss.ff format
-    
-    Returns:
-        str: Timestamp in mm:ss.ff format
-    
-    Examples:
-        "00:05" → "00:05.00"
-        "00:05.50" → "00:05.50"
-        "2.5" → "2.5" (passthrough for numeric)
-    """
-    timestamp_str = str(timestamp_str)
-    
-    # If it matches mm:ss pattern without .ff, add .00
-    if re.match(r'^\d+:\d+$', timestamp_str):
-        return timestamp_str + ".00"
-    
-    # Otherwise return as-is (already has .ff or is numeric)
-    return timestamp_str
+    # Extract first valid number (handles malformed "2.00.00" → 2.00)
+    match = re.match(r'(\d+\.?\d*)', s)
+    return float(match.group(1)) if match else 0.0
 
 
 def extract_json(text: str):
