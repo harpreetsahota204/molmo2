@@ -1,6 +1,21 @@
-# Molmo2
+# Molmo2 - FiftyOne Model Zoo Integration
+
+![]
 
 Molmo2 is a family of open vision-language models developed by the Allen Institute for AI (Ai2) that support image, video, and multi-image understanding and grounding. Molmo2 models are trained on publicly available third-party datasets and Molmo2 data, a collection of highly-curated image-text and video-text pairs. It has state-of-the-art performance among multimodal models with similar size.
+
+## Use Cases
+
+Molmo2's core strength is **grounding** — precise pixel-level localization and tracking over time. While standard models might say "a car passed by," Molmo2 can point to the **exact car**, follow it **through a crowd**, and mark the **exact second** it crossed a line.
+
+| Domain | Applications |
+|--------|--------------|
+| **Robotics & Automation** | Spatial affordance prediction, action counting ("How many times did the robot grasp the block?"), event localization |
+| **Autonomous Driving** | Vehicle tracking, traffic monitoring, pedestrian detection through occlusions |
+| **Sports Analytics** | Athlete tracking, action spotting (goals, fouls), multi-player trajectory analysis |
+| **Document & Business** | Chart/table understanding, multi-image reasoning for policy analysis, administrative workflow automation |
+| **Media & Accessibility** | Dense video captioning (924 words avg), video search metadata, assistive narration for visually impaired |
+| **Generative AI QA** | Localizing visual artifacts in AI-generated videos (vanishing subjects, physical incongruities) |
 
 ## Model Checkpoints
 
@@ -88,6 +103,15 @@ model = foz.load_zoo_model("allenai/Molmo2-4B")
 
 ### Embeddings
 
+Generate fixed-dimension vector embeddings for each video. Useful for similarity search, clustering, and visualization.
+
+**Added field:** `molmo_embeddings` — a numpy array of shape `(hidden_dim,)` on each sample.
+
+**Pooling strategy:** Controls how variable-length hidden states are collapsed into a fixed-size vector:
+- `mean` (default) — average across all tokens
+- `max` — max pooling across tokens  
+- `cls` — use the first (CLS) token only
+
 ```python
 model.pooling_strategy = "mean"  # or "max" or "cls"
 
@@ -101,6 +125,8 @@ dataset.compute_embeddings(
 ```
 
 ### Visualize Embeddings
+
+Use FiftyOne Brain to project embeddings into 2D/3D for visualization in the App.
 
 ```python
 import fiftyone.brain as fob
@@ -116,6 +142,10 @@ results = fob.compute_visualization(
 
 ### Describe
 
+Generate free-form text descriptions, captions, or answers to questions about videos. The prompt is used directly without any template.
+
+**Added field:** A string field (e.g., `prompted_describe` or `answer_pred`) containing the model's text response on each sample.
+
 ```python
 # With a global prompt
 model.operation = "describe"
@@ -129,7 +159,7 @@ dataset.apply_model(
     skip_failures=False
 )
 
-# With per-sample prompts from a field
+# With per-sample prompts from a field (e.g., for VQA)
 model.operation = "describe"
 
 dataset.apply_model(
@@ -143,6 +173,12 @@ dataset.apply_model(
 ```
 
 ### Pointing
+
+Point to objects in video frames. The model identifies where instances of the specified object appear across frames and returns their coordinates.
+
+**Added field:** Frame-level `fo.Keypoints` on each frame where the object is detected. Each keypoint contains normalized `(x, y)` coordinates and an `index` identifying the object instance.
+
+> **Tip:** If pointing/counting is your primary use case, consider using `allenai/Molmo2-VideoPoint-4B` which is specifically finetuned for video pointing and counting tasks.
 
 ```python
 model.operation = "pointing"
@@ -159,6 +195,10 @@ dataset.apply_model(
 
 ### Tracking
 
+Track objects across video frames. Similar to pointing, but keypoints for the same object share an `fo.Instance` to link them across time.
+
+**Added field:** Frame-level `fo.Keypoints` with `fo.Instance` linking. Objects maintain consistent identity across frames, enabling trajectory analysis.
+
 ```python
 model.operation = "tracking"
 model.prompt = "person's hand"
@@ -174,6 +214,15 @@ dataset.apply_model(
 
 ### Comprehensive
 
+Run a full video analysis that extracts multiple types of information: summary, events, objects, text content, scene info, and activities.
+
+**Added fields:** Multiple fields are added to each sample:
+- `comprehensive_summary` — text description
+- `comprehensive_events` — `fo.TemporalDetections` for activities/events
+- `comprehensive_objects` — `fo.TemporalDetections` with first/last appearance times
+- `comprehensive_scene_info_*` — `fo.Classification` fields (setting, time_of_day, location_type)
+- `comprehensive_activities_*` — `fo.Classification` or `fo.Classifications`
+
 ```python
 model.operation = "comprehensive"
 
@@ -187,6 +236,10 @@ dataset.apply_model(
 ```
 
 ### Temporal Localization
+
+Find and localize activity events in the video with start/end timestamps.
+
+**Added field:** `fo.TemporalDetections` on each sample containing detected events with their time intervals and descriptions.
 
 ```python
 model.operation = "temporal_localization"
