@@ -146,20 +146,18 @@ OPERATION_PROMPTS = {
     "tracking": "Track the {prompt}.",
     "describe": None,  # Use prompt directly, no template
     "temporal_localization": """Localize activity events in the video. Output start and end timestamp for each event.
-Output ONLY valid JSON in this format (no additional text):
-[{"start": "mm:ss.ff", "end": "mm:ss.ff", "description": "event description"}]""",
+Output ONLY valid JSON in this exact format:
+[{"start": "mm:ss", "end": "mm:ss", "description": "event description"}]""",
     "comprehensive": """Analyze this video comprehensively. Output ONLY valid JSON in this exact format:
 
 {
   "summary": "Brief description of the video",
-  "objects": [{"name": "object name", "first_appears": "mm:ss.ff", "last_appears": "mm:ss.ff"}],
-  "events": [{"start": "mm:ss.ff", "end": "mm:ss.ff", "description": "event description"}],
-  "text_content": [{"start": "mm:ss.ff", "end": "mm:ss.ff", "text": "text content"}],
+  "objects": [{"name": "object name", "first_appears": "mm:ss", "last_appears": "mm:ss"}],
+  "events": [{"start": "mm:ss", "end": "mm:ss", "description": "event description"}],
+  "text_content": [{"start": "mm:ss", "end": "mm:ss", "text": "text content"}],
   "scene_info": {"setting": "<one-word-description>", "time_of_day": "<one-word-description>", "location_type": "<one-word-description>"},
   "activities": {"primary_activity": "activity name", "secondary_activities": "comma-separated activities"}
-}
-
-Do not include any text before or after the JSON.""",
+}""",
 }
 
 
@@ -844,12 +842,12 @@ class Molmo2VideoModel(fom.Model, SamplesMixin, SupportsGetItem, TorchModelMixin
             if label_type == "events":
                 start = item.get("start", "00:00.00")
                 end = item.get("end", "00:00.00")
-                label = str(item.get("description", "event"))
+                label = str(item.get("description", "event")).capitalize()
             elif label_type == "objects":
                 start = item.get("first_appears", "00:00.00")
                 end = item.get("last_appears", "00:00.00")
-                label = str(item.get("name", "object"))
-            else:  # text
+                label = str(item.get("name", "object")).capitalize()
+            else:  # text - preserve original casing
                 start = item.get("start", "00:00.00")
                 end = item.get("end", "00:00.00")
                 label = str(item.get("text", "text"))
@@ -1037,6 +1035,10 @@ class Molmo2VideoModel(fom.Model, SamplesMixin, SupportsGetItem, TorchModelMixin
                     temporal_dets = self._parse_temporal_detections(items, metadata)
                     if temporal_dets:
                         return {"events": temporal_dets}
+                else:
+                    logger.warning("temporal_localization: No events found in JSON output")
+            else:
+                logger.warning(f"temporal_localization: Could not parse JSON from output: {text[:200]}...")
             # No valid JSON or no events - return empty detections
             return {"events": fol.TemporalDetections(detections=[])}
         
@@ -1046,9 +1048,9 @@ class Molmo2VideoModel(fom.Model, SamplesMixin, SupportsGetItem, TorchModelMixin
             if json_data and isinstance(json_data, dict):
                 result = {}
                 
-                # Parse summary (plain text)
+                # Parse summary (plain text, sentence case)
                 if "summary" in json_data:
-                    result["summary"] = str(json_data["summary"])
+                    result["summary"] = str(json_data["summary"]).capitalize()
                 
                 # Parse events (temporal detections)
                 if "events" in json_data and json_data["events"]:
@@ -1068,13 +1070,13 @@ class Molmo2VideoModel(fom.Model, SamplesMixin, SupportsGetItem, TorchModelMixin
                     if temporal_dets:
                         result["text_content"] = temporal_dets
                 
-                # Parse scene_info (nested dict → Classifications)
+                # Parse scene_info (nested dict → Classifications, sentence case)
                 if "scene_info" in json_data and isinstance(json_data["scene_info"], dict):
                     for key, value in json_data["scene_info"].items():
                         field_name = f"scene_info_{key}"
-                        result[field_name] = fol.Classification(label=str(value))
+                        result[field_name] = fol.Classification(label=str(value).capitalize())
                 
-                # Parse activities (nested dict → Classifications)
+                # Parse activities (nested dict → Classifications, sentence case)
                 if "activities" in json_data and isinstance(json_data["activities"], dict):
                     for key, value in json_data["activities"].items():
                         field_name = f"activities_{key}"
@@ -1082,10 +1084,10 @@ class Molmo2VideoModel(fom.Model, SamplesMixin, SupportsGetItem, TorchModelMixin
                             # Parse comma-separated values
                             items = [item.strip() for item in value.split(',') if item.strip()]
                             result[field_name] = fol.Classifications(
-                                classifications=[fol.Classification(label=item) for item in items]
+                                classifications=[fol.Classification(label=item.capitalize()) for item in items]
                             )
                         else:
-                            result[field_name] = fol.Classification(label=str(value))
+                            result[field_name] = fol.Classification(label=str(value).capitalize())
                 
                 # Return parsed results or use raw text as summary if nothing parsed
                 if result:
