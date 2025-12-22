@@ -1032,10 +1032,13 @@ class Molmo2VideoModel(fom.Model, SamplesMixin, SupportsGetItem, TorchModelMixin
         
         elif self.config.operation == "temporal_localization":
             # Parse JSON output to temporal detections
+            print(f"[DEBUG] Raw model output:\n{text[:500]}")
             json_data = extract_json(text)
+            print(f"[DEBUG] extract_json returned: {type(json_data).__name__} = {json_data}")
             if json_data:
                 # Handle both list and dict with "events" key
                 items = json_data if isinstance(json_data, list) else json_data.get("events", [])
+                print(f"[DEBUG] items after isinstance check: {type(items).__name__} = {items}")
                 if items:
                     temporal_dets = self._parse_temporal_detections(items, metadata)
                     if temporal_dets:
