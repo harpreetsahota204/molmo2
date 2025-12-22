@@ -146,8 +146,13 @@ OPERATION_PROMPTS = {
     "tracking": "Track the {prompt}.",
     "describe": None,  # Use prompt directly, no template
     "temporal_localization": """Localize activity events in the video. Output start and end timestamp for each event.
-Output ONLY valid JSON in this exact format:
-[{"start": "mm:ss", "end": "mm:ss", "description": "event description"}]""",
+    Output ONLY valid JSON in this exact format:
+    
+{
+    "start": "mm:ss",
+    "end": "mm:ss",
+    "description": "event description"
+}""",
     "comprehensive": """Analyze this video comprehensively. Output ONLY valid JSON in this exact format:
 
 {
