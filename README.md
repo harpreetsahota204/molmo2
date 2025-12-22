@@ -1,6 +1,6 @@
 # Molmo2 - FiftyOne Model Zoo Integration
 
-![]
+<img src="molmo2.gif">
 
 Molmo2 is a family of open vision-language models developed by the Allen Institute for AI (Ai2) that support image, video, and multi-image understanding and grounding. Molmo2 models are trained on publicly available third-party datasets and Molmo2 data, a collection of highly-curated image-text and video-text pairs. It has state-of-the-art performance among multimodal models with similar size.
 
